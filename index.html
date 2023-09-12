@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Photo Editor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div id="canvas-size">Canvas Size: <span id="canvas-width">0</span> x <span id="canvas-height">0</span></div>
+            <button id="add-photo-button" class="button">Add Photo</button>
+            <button id="save-button" class="button">Save</button>
+            <button id="load-button" class="button">Load</button>
+            <button id="clear-canvas-button" class="button">Clear</button>
+            <button id="zoom-out-button" class="button">Zoom Out</button>
+        </nav>
+    </header>
+
+    <input type="file" id="file-input" accept="image/*" multiple>
+    <input type="text" id="file-name" placeholder="Enter file name">
+
+    <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="context-menu" style="position: absolute; display: none;">
+        <ul>
+            <li id="delete-image">Delete Image</li>
+        </ul>
+    </div>
+    
+
+    <script src="test.js"></script>
+</body>
+</html>

@@ -9,20 +9,27 @@ const addPhotoButton = document.getElementById('add-photo-button');
 const contextMenu = document.getElementById('context-menu');
 const deleteImageOption = document.getElementById('delete-image');
 const zoomOutButton = document.getElementById('zoom-out-button');
-const resizeHandleSize =1; // Size of the resize handles
-const canvasSizeFactor = 2;
+const rotateClockwiseButton = document.getElementById('rotate-clockwise-button');
+const rotateCounterClockwiseButton = document.getElementById('rotate-counter-clockwise-button');
+// Event listener for mouse down on the rotation button
+document.getElementById('rotate-button').addEventListener('mousedown', handleRotationButtonMouseDown);
+
+
 
 let images = [];
 let isDragging = false;
 let isResizing = false;
 let activeImageIndex = -1;
-let startX, startY, startWidth, startHeight;
+let startX, startY, startWidth, startHeight,startRotationAngle ;
 let resizingHandleIndex = -1;
 let canvasOffsetX = 0;
 let canvasOffsetY = 0;
 let isCanvasDragging = false;
 let canvasBackgroundColor = 'white';
-
+let isRotating = false;
+let rotatingImageIndex = -1;
+const resizeHandleSize =1; // Size of the resize handles
+const canvasSizeFactor = 2;
 
 // Add event listeners to buttons
 clearCanvasButton.addEventListener('click', clearCanvas);
@@ -109,6 +116,9 @@ zoomOutButton.addEventListener('click', () => {
     canvas.classList.toggle('canvas-border', canvas.width <= currentCanvasWidth && canvas.height <= currentCanvasHeight);
 });
 
+// rotateClockwiseButton.addEventListener('click', () => rotateImage(true));
+// rotateCounterClockwiseButton.addEventListener('click', () => rotateImage(false));
+
 
 // Event listener for the canvas mousedown event
 canvas.addEventListener('mousedown', handleCanvasMouseDown);
@@ -129,7 +139,31 @@ canvas.addEventListener('contextmenu', handleCanvasContextMenu);
 
 canvas.addEventListener('zoomOutButton',zoomOutButton);
 
+canvas.addEventListener('mousedown', handleCanvasMouseDown);
 
+canvas.addEventListener('mousedown', handleRotationButtonMouseDown);
+
+canvas.addEventListener('mousemove', handleRotation);
+
+canvas.addEventListener('mouseup', stopRotation);
+
+// Event listener for canvas click to select an image
+canvas.addEventListener('click', handleCanvasClick);
+
+
+//Function to rotate image
+function rotateImage(clockwise) {
+    if (activeImageIndex !== -1) {
+        const image = images[activeImageIndex];
+        // Rotate the image by 90 degrees clockwise or counterclockwise
+        if (clockwise) {
+            image.rotation += 90;
+        } else {
+            image.rotation -= 90;
+        }
+        drawImagesOnCanvas();
+    }
+}
 
 // Function to handle canvas mousedown event
 function handleCanvasMouseDown(e) {
@@ -358,6 +392,16 @@ function handleCanvasContextMenu(e) {
 
 //-------------------------------------------------------------------------------------------
 
+function handleCanvasClick(e) {
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // Find the index of the clicked image
+    activeImageIndex = findClickedImage(x, y);
+
+    // Redraw the canvas to reflect the selected image and show/hide the rotation button
+    drawImagesOnCanvas();
+}
 
 function updateCanvasSizeDisplay(width, height) {
     const canvasWidthElement = document.getElementById('canvas-width');
@@ -426,31 +470,32 @@ function loadCanvas() {
     const input = document.createElement('input');
     input.type = 'file';
 
-    input.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    // Clear existing images
-                    images = [];
-
-                    // Calculate the center position of the canvas
-                    const centerX = canvas.width / 2  - img.width / 2;
-                    const centerY = canvas.height / 2 - img.height / 2;
-
-                    // Add the loaded image to the canvas
-                    images.push({ img, x: centerX, y: centerY, width: img.width, height: img.height });
-
-                    // Calculate the average color and set it as the canvas background color
-                    canvasBackgroundColor = calculateCanvasAverageColor();
-                    // Redraw the canvas
-                    drawImagesOnCanvas();
+    imageUploadInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files.length > 0) {
+            // Clear existing images to load only one image at a time
+            images = [];
+    
+            const file = files[0]; // Get the first selected file
+    
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.src = e.target.result;
+    
+                    // Add the image-resizable class here
+                    img.classList.add('image-resizable');
+    
+                    img.onload = () => {
+                        images.push({ img, x: 0, y: 0, width: img.width, height: img.height });
+                        // Calculate the average color and set it as the canvas background color
+                        canvasBackgroundColor = calculateCanvasAverageColor();
+                        drawImagesOnCanvas();
+                    };
                 };
-            };
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
+            }
         }
     });
 
@@ -492,7 +537,15 @@ function drawImagesOnCanvas() {
     for (let i = 0; i < images.length; i++) {
         const image = images[i];
         ctx.drawImage(image.img, image.x, image.y, image.width, image.height);
+        ctx.rotate((Math.PI / 180) * image.rotation); // Rotate the image
+        ctx.drawImage(image.img, -image.width / 2, -image.height / 2, image.width, image.height);
+        ctx.restore(); // Restore the saved transformation matrix
+        drawRotationButton(image);
     }
+    // Show/hide the rotation button based on whether an image is selected
+    const rotateButton = document.getElementById('rotate-button');
+    rotateButton.style.display = activeImageIndex !== -1 ? 'block' : 'none';
+
     // Apply the stored average color as the background color
     canvas.style.backgroundColor = canvasBackgroundColor;
 }
@@ -621,9 +674,132 @@ function maintainAspectRatio(newWidth, newHeight, originalWidth, originalHeight)
     }
 }
 
+// Function to draw the rotation button for an image
+function drawRotationButton(image) {
+    const buttonRadius = 15; // Adjust button size as needed
+    const buttonX = image.x + image.width / 2;
+    const buttonY = image.y - buttonRadius - 5; // Adjust vertical position as needed
+
+    // Draw the rotation button
+    ctx.beginPath();
+    ctx.arc(buttonX, buttonY, buttonRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = '#007bff';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('↻', buttonX, buttonY); // Add a rotation symbol (↻) to the button
+    ctx.closePath();
+}
+
+function handleRotationButtonMouseDown(e) {
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // Find the index of the clicked image
+    activeImageIndex = findClickedImage(x, y);
+
+    // Check if the mouse click is within the rotation button
+    if (activeImageIndex !== -1 && e.button !== 2) {
+        const image = images[activeImageIndex];
+        const buttonX = image.x + image.width / 2;
+        const buttonY = image.y - 15; // Adjust the vertical position of the button as needed
+        const buttonRadius = 15; // Adjust the button size as needed
+
+        // Calculate the distance from the click to the rotation button center
+        const distance = Math.sqrt((x - buttonX) ** 2 + (y - buttonY) ** 2);
+
+        // Check if the click is within the rotation button
+        if (distance <= buttonRadius) {
+            isRotating = true;
+            rotatingImageIndex = activeImageIndex;
+            // Store the initial rotation angle
+            startRotationAngle = images[rotatingImageIndex].rotation;
+        }
+    }
+}
+
+// Function to handle rotation when the mouse is moved
+function handleRotation(e) {
+    if (isRotating) {
+        const x = e.clientX;
+        const y = e.clientY;
+        const image = images[rotatingImageIndex];
+
+        // Calculate the angle of rotation based on mouse movement
+        const deltaX = x - canvas.width / 2;
+        const deltaY = canvas.height / 2 - y;
+        const angle = Math.atan2(deltaY, deltaX) - Math.atan2(startY, startX);
+        rotateImage((angle * 180) / Math.PI); // Convert radians to degrees
+    }
+}
+
+// Function to stop rotation when the mouse is released
+function stopRotation() {
+    isRotating = false;
+    rotatingImageIndex = -1;
+}
+
+
 
 // Add an event listener for the window's resize event
 window.addEventListener('resize', handleWindowResize);
 
 // Initial canvas setup when the page loads
 handleWindowResize();
+
+
+class ImageGroup {
+    constructor() {
+        this.images = [];
+    }
+
+    addImage(image) {
+        this.images.push(image);
+    }
+
+    removeImage(image) {
+        const index = this.images.indexOf(image);
+        if (index !== -1) {
+            this.images.splice(index, 1);
+        }
+    }
+
+    // Implement other group-related methods as needed
+}
+
+const actionHistory = [];
+let currentActionIndex = -1;
+
+function saveAction() {
+    // Save the current state (e.g., images array) in the history
+    const currentState = JSON.stringify(images);
+    actionHistory.push(currentState);
+    currentActionIndex = actionHistory.length - 1;
+}
+
+function undo() {
+    if (currentActionIndex > 0) {
+        currentActionIndex--;
+        const previousState = JSON.parse(actionHistory[currentActionIndex]);
+        images = previousState;
+        drawImagesOnCanvas();
+    }
+}
+
+function redo() {
+    if (currentActionIndex < actionHistory.length - 1) {
+        currentActionIndex++;
+        const nextState = JSON.parse(actionHistory[currentActionIndex]);
+        images = nextState;
+        drawImagesOnCanvas();
+    }
+}
+
+// Example: Add undo and redo buttons and attach event listeners
+const undoButton = document.getElementById('undo-button');
+const redoButton = document.getElementById('redo-button');
+
+undoButton.addEventListener('click', undo);
+redoButton.addEventListener('click', redo);

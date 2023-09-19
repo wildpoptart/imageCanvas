@@ -152,3 +152,17 @@ body {
     float: left; /* Align it to the left */
     margin-right: 10px; /* Add some spacing between the text and other navbar items */
 }
+
+.rotation-button {
+    position: absolute;
+    top: -20px; /* Adjust the button's position as needed */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 30px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
